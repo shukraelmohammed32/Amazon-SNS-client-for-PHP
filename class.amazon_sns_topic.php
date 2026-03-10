@@ -9,39 +9,54 @@
 class amazon_sns_topic {
 
 	private $TopicArn;
-	
+
 	/*
 	 * Create a new topic object
 	 * 
 	 * param string the topicarn you got previously after creating a new topic
 	 */
 	public function __construct ($TopicArn = null) {
-	
+
 		if (!is_null($TopicArn)) {
 			$this->TopicArn = $TopicArn;
 		}
-	
+
 	}
-	
-	/*
-	 * Publish a message to this topic
-	 * 
-	 * @param string subject of the message (for emails)
-	 * @param string message body
+
+	/**
+	 * Build a topic instance from a known ARN.
+	 *
+	 * @param string $TopicArn
+	 * @return amazon_sns_topic
 	 */
-	public function publish ($subject, $message) {
-		$response = amazon_sns_helper::request(array('Subject'=>$subject, 'Message'=>$message, 'TopicArn'=>$this->TopicArn, 'Action'=>'Publish'));
+	public static function fromArn ($TopicArn) {
+		return new self($TopicArn);
 	}
-	
+
+	/**
+	 * Publish a message to this topic.
+	 * 
+	 * @param string $subject subject of the message (for emails)
+	 * @param string $message message body
+	 * @param array $extraParams additional SNS parameters (e.g. MessageStructure)
+	 * @return SimpleXMLElement
+	 */
+	public function publish ($subject, $message, array $extraParams = array()) {
+		$this->assertTopicArn();
+		$params = array_merge(array('Action'=>'Publish', 'TopicArn'=>$this->TopicArn, 'Subject'=>$subject, 'Message'=>$message), $extraParams);
+		return amazon_sns_helper::request($params);
+	}
+
 	/*
 	 * Set the display name for this topic
 	 * 
 	 * @param string the human readable display name
 	 */
 	public function setDisplayName ($DisplayName) {
-		$response = amazon_sns_helper::request(array('Action'=>'SetTopicAttributes', 'TopicArn'=>$this->TopicArn, 'AttributeName'=>'DisplayName', 'AttributeValue'=>$DisplayName));
+		$this->assertTopicArn();
+		return amazon_sns_helper::request(array('Action'=>'SetTopicAttributes', 'TopicArn'=>$this->TopicArn, 'AttributeName'=>'DisplayName', 'AttributeValue'=>$DisplayName));
 	}
-	
+
 	/*
 	 * Return the arn for the current topic
 	 * 
@@ -50,14 +65,15 @@ class amazon_sns_topic {
 	public function getArn () {
 		return $this->TopicArn;
 	}
-	
+
 	/*
 	 * Ask amazon to delete the current topic 
 	 */
 	public function delete () {
-		$response = amazon_sns_helper::request(array('Action'=>'DeleteTopic', 'TopicArn'=>$this->TopicArn));
+		$this->assertTopicArn();
+		return amazon_sns_helper::request(array('Action'=>'DeleteTopic', 'TopicArn'=>$this->TopicArn));
 	}
-	
+
 	/**
 	 * Create a new topic with this name
 	 * 
@@ -66,8 +82,17 @@ class amazon_sns_topic {
 	 */
 	public static function create ($name) {
 		$response = amazon_sns_helper::request(array('Action'=>'CreateTopic', 'Name'=>$name));
-	
+
 		return new amazon_sns_topic($response->CreateTopicResult->TopicArn);
+	}
+
+	/**
+	 * Ensure an ARN is present before making a request.
+	 */
+	private function assertTopicArn () {
+		if (empty($this->TopicArn)) {
+			throw new InvalidArgumentException('TopicArn is not set for this topic instance.');
+		}
 	}
 
 }
